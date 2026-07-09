@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { LiveBanner } from "./components/LiveBanner";
 import { PollToast } from "./components/PollToast";
@@ -25,6 +25,7 @@ function Layout() {
   const allTeamIds = useMemo(() => teams.map((t) => t.id), [teams]);
   const { data: coordsData, lastFetchedAt } = useCoords(allTeamIds, selectedTeamIds);
   const [checkpointEvents, setCheckpointEvents] = useState<CheckpointEvent[]>([]);
+  const dismissedIdsRef = useRef<Set<string>>(new Set());
   const [notifications, setNotifications] = useState(() => localStorage.getItem("settings:notifications") !== "false");
   const [fullscreen, setFullscreen] = useState(false);
 
@@ -35,6 +36,7 @@ function Layout() {
   }, []);
 
   const dismissCheckpointEvent = (id: string) => {
+    dismissedIdsRef.current.add(id);
     setCheckpointEvents((prev) => prev.filter((e) => e.id !== id));
   };
 
@@ -59,15 +61,20 @@ function Layout() {
       }
     } catch {}
 
-    setCheckpointEvents((prev) => [...prev, {
-      id: `${event.CreatedAt}-${event.level_id}`,
-      teamName,
-      teamColor,
-      levelIndex: 0,
-      duckName,
-      photoUrl,
-      timestamp: event.CreatedAt,
-    }]);
+    const id = `${event.CreatedAt}-${event.level_id}`;
+    if (dismissedIdsRef.current.has(id)) return;
+    setCheckpointEvents((prev) => {
+      if (prev.some((e) => e.id === id)) return prev;
+      return [...prev, {
+        id,
+        teamName,
+        teamColor,
+        levelIndex: 0,
+        duckName,
+        photoUrl,
+        timestamp: event.CreatedAt,
+      }];
+    });
   });
 
   // Auto-select the most recent game on load

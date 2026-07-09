@@ -40,14 +40,6 @@
     "longitude": -120.6560430835969
   },
   {
-    "id": 6,
-    "name": "Plant Conservatory",
-    "character": "Wednesday Addams",
-    "description": "A 5,000-sq-ft botanical science facility with rare and exotic plants",
-    "latitude": 35.3047600409823,
-    "longitude": -120.6588134130681
-  },
-  {
     "id": 7,
     "name": "PAC Pavilion",
     "character": "Lightning McQueen",

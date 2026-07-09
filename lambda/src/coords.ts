@@ -13,31 +13,36 @@ export async function handler(
 
     const since = event.queryStringParameters?.since;
 
-    let keyConditionExpression =
-      "GSI1PK = :pk AND begins_with(GSI1SK, :skPrefix)";
+    const skStart = since
+      ? `COORDINATE_SNAPSHOT#${String(parseInt(since, 10) + 1)}`
+      : "COORDINATE_SNAPSHOT#";
     const expressionAttributeValues: Record<string, unknown> = {
       ":pk": `TEAM#${teamId}`,
-      ":skPrefix": "COORDINATE_SNAPSHOT#",
+      ":skMin": skStart,
+      ":skMax": "COORDINATE_SNAPSHOT#~",
     };
-
-    // If ?since= is provided, filter to snapshots after that epoch
-    let filterExpression: string | undefined;
-    if (since) {
-      filterExpression = "CreatedAt >= :since";
-      expressionAttributeValues[":since"] = parseInt(since, 10);
-    }
 
     const result = await docClient.send(
       new QueryCommand({
         TableName: TABLE_NAME,
         IndexName: "GSI1",
-        KeyConditionExpression: keyConditionExpression,
+        KeyConditionExpression: "GSI1PK = :pk AND GSI1SK BETWEEN :skMin AND :skMax",
         ExpressionAttributeValues: expressionAttributeValues,
-        ...(filterExpression && { FilterExpression: filterExpression }),
       })
     );
 
-    return response(200, { coords: result.Items ?? [] });
+    const coords = (result.Items ?? []).map((item) => {
+      // Synthesize CreatedAt from GSI1SK (COORDINATE_SNAPSHOT#<epoch>#<id>)
+      if (!item.CreatedAt && item.GSI1SK) {
+        const parts = (item.GSI1SK as string).split("#");
+        if (parts.length >= 2) {
+          item.CreatedAt = parseInt(parts[1], 10);
+        }
+      }
+      return item;
+    });
+
+    return response(200, { coords });
   } catch (err) {
     console.error("Error fetching coords:", err);
     return errorResponse(500, "Failed to fetch coordinates");

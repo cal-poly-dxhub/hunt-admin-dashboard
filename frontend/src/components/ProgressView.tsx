@@ -285,13 +285,25 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap }: Props) {
                     return (
                       <button
                         key={level.level_id}
-                        onClick={() => setModal({
-                          teamName: name,
-                          teamColor: color,
-                          levelIndex: displayIndex,
-                          photoUrl: null,
-                          elapsedTime: elapsedStr,
-                        })}
+                        onClick={async () => {
+                          setModal({
+                            teamName: name,
+                            teamColor: color,
+                            levelIndex: displayIndex,
+                            photoUrl: null,
+                            elapsedTime: elapsedStr,
+                          });
+                          const nextLevel = sortedLevels[level.index + 1];
+                          if (state === "completed" && nextLevel) {
+                            try {
+                              const res = await fetch(`/api/photo-url?prefix=${encodeURIComponent(`${teamId}/${nextLevel.level_id}/`)}`);
+                              if (res.ok) {
+                                const data = await res.json();
+                                setModal((prev) => prev ? { ...prev, photoUrl: data.url } : null);
+                              }
+                            } catch {}
+                          }
+                        }}
                         className={`flex flex-col justify-center px-4 py-3 rounded-md cursor-pointer transition-all min-w-[120px] ${
                           state === "completed"
                             ? "text-white hover:opacity-90"
