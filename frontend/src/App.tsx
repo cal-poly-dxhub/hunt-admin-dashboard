@@ -6,6 +6,7 @@ import { CheckpointToastStack, type CheckpointEvent } from "./components/Checkpo
 import { Stopwatch } from "./components/Stopwatch";
 import { GameDropdown } from "./components/GameDropdown";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { RecordButton } from "./components/RecordButton";
 import { TeamChips } from "./components/TeamChips";
 import { LiveMap } from "./components/LiveMap";
 import { ProgressView } from "./components/ProgressView";
@@ -46,7 +47,7 @@ function Layout() {
     const teamName = teamNameMap.get(event.team_id) ?? "Team";
     const colorIndex = teamIndexMap.get(event.team_id) ?? 0;
     const teamColor = getTeamColor(colorIndex);
-    const duckName = ducks.find((_d, i) => i.toString() === event.level_id)?.name
+    const duckName = ducks.find((d) => d.id.toString() === event.level_id)?.name
       ?? "Checkpoint";
 
     let photoUrl: string | null = null;
@@ -183,6 +184,7 @@ function Layout() {
           </NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <RecordButton />
           <Stopwatch startTime={games.find((g) => g.id === gameId)?.created_at ?? null} />
           <GameDropdown
             games={games}

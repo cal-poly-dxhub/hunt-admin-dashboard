@@ -10,12 +10,11 @@ interface Props {
   teamNameMap: Map<string, string>;
 }
 
-type SortKey = "best" | "fastest" | "recent" | "alpha";
+type SortKey = "best" | "recent" | "alpha";
 type SortDir = "asc" | "desc";
 
 const SORT_OPTIONS: { key: SortKey; label: string; reverse: string }[] = [
   { key: "best", label: "Best", reverse: "Worst" },
-  { key: "fastest", label: "Fastest", reverse: "Slowest" },
   { key: "recent", label: "Recent", reverse: "Oldest" },
   { key: "alpha", label: "A–Z", reverse: "Z–A" },
 ];
@@ -157,14 +156,11 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap }: Props) {
     const sorted = [...teamIds].sort((a, b) => {
       let cmp = 0;
       switch (sortKey) {
-        case "best":
+        case "best": {
           cmp = getCompleted(b) - getCompleted(a);
-          break;
-        case "fastest": {
-          const elA = getTotalElapsed(a);
-          const elB = getTotalElapsed(b);
-          // Lower elapsed = faster = should rank first in asc
-          cmp = elA - elB;
+          if (cmp === 0) {
+            cmp = getTotalElapsed(a) - getTotalElapsed(b);
+          }
           break;
         }
         case "recent":
@@ -257,7 +253,9 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap }: Props) {
                     {name}
                   </span>
                   {teamElapsed > 0 && (
-                    <span className="text-xs font-mono text-gray-400">
+                    <span className={`text-xs font-mono ${
+                      completedCount === progress.total ? "text-gray-700" : "text-gray-400"
+                    }`}>
                       {formatDuration(teamElapsed)}
                     </span>
                   )}
