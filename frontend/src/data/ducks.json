@@ -1,0 +1,58 @@
+[
+  {
+    "id": 1,
+    "name": "Golden Cow Statue",
+    "character": "Shakespeare",
+    "description": "A golden statue of a bull outside the College of Agriculture",
+    "latitude": 35.30233696880493,
+    "longitude": -120.66204874533122
+  },
+  {
+    "id": 2,
+    "name": "Cal Poly Mustang Statue",
+    "character": "Pirate",
+    "description": "A bronze sculpture of a mustang rearing on its hind legs",
+    "latitude": 35.300677,
+    "longitude": -120.658704
+  },
+  {
+    "id": 3,
+    "name": "Einstein Sculpture",
+    "character": "Yoda",
+    "description": "A bronze statue of Albert Einstein on a bench outside Baker Center",
+    "latitude": 35.30114443388409,
+    "longitude": -120.6604217084552
+  },
+  {
+    "id": 4,
+    "name": "Cal Poly Sign",
+    "character": "Dora",
+    "description": "A nine-foot-tall Cal Poly sign with Hollywood-style letters",
+    "latitude": 35.29962390337394,
+    "longitude": -120.65888823122715
+  },
+  {
+    "id": 5,
+    "name": "Jamba Juice",
+    "character": "Surfer",
+    "description": "A smoothie shop with Cal Poly roots, originally Kirk Perron's senior project",
+    "latitude": 35.29930950673962,
+    "longitude": -120.6560430835969
+  },
+  {
+    "id": 6,
+    "name": "Plant Conservatory",
+    "character": "Wednesday Addams",
+    "description": "A 5,000-sq-ft botanical science facility with rare and exotic plants",
+    "latitude": 35.3047600409823,
+    "longitude": -120.6588134130681
+  },
+  {
+    "id": 7,
+    "name": "PAC Pavilion",
+    "character": "Lightning McQueen",
+    "description": "A major campus gathering and performance space",
+    "latitude": 35.29951727814395,
+    "longitude": -120.65727575520914
+  }
+]

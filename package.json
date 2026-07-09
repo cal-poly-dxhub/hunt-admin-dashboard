@@ -1,0 +1,25 @@
+{
+  "name": "hunt-admin-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "lambda",
+    "frontend"
+  ],
+  "scripts": {
+    "build": "yarn workspaces foreach -A run build",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "cdk deploy",
+    "diff": "cdk diff"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.170.0",
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.4.2",
+    "typescript": "^5.7.0",
+    "ts-node": "^10.9.2",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.24.0"
+  }
+}

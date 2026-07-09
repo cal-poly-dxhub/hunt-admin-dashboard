@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+body {
+  font-family: "Host Grotesk", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+@keyframes rainbow-rotate {
+  0% { --border-angle: 0deg; }
+  100% { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes checkpoint-pulse {
+  0%, 100% { border-width: 3px; }
+  50% { border-width: 4px; }
+}
+
+.checkpoint-toast-border {
+  animation: rainbow-rotate 1.5s linear infinite, checkpoint-pulse 1.5s ease-in-out infinite;
+  border: 3px solid transparent;
+  background:
+    linear-gradient(white, white) padding-box,
+    conic-gradient(from var(--border-angle), #ef4444, #f59e0b, #22c55e, #3b82f6, #8b5cf6, #ec4899, #ef4444) border-box;
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+
+@keyframes level-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.level-in-progress {
+  animation: level-pulse 2s ease-in-out infinite;
+}
+
+.hunt-popup .mapboxgl-popup-content {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  box-shadow: none;
+}
+
+.hunt-popup .mapboxgl-popup-tip {
+  display: none;
+}
