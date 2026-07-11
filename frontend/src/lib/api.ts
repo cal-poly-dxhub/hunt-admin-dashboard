@@ -25,6 +25,9 @@ export interface Game {
   teams: { id: string; name: string }[];
   created_at: string;
   updated_at: string;
+  started_at?: string;
+  paused_at?: string;
+  total_paused_ms?: number;
   [key: string]: unknown;
 }
 
@@ -75,7 +78,7 @@ export interface Level {
 export interface TeamProgress {
   teamId: string;
   total: number;
-  completed: number; // NOTE: unreliable — only checks Status field, not completed_at
+  completed: number; // count of levels with completed_at set
   levels: Level[];
 }
 
@@ -116,4 +119,57 @@ export function fetchEvents(since?: string): Promise<{ events: CheckpointEventDa
 
 export function fetchPhotoUrl(key: string): Promise<{ url: string }> {
   return request(`/api/photo-url?key=${encodeURIComponent(key)}`);
+}
+
+export async function verifySecret(secret: string): Promise<boolean> {
+  const res = await fetch("/api/verify", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-secret": secret,
+    },
+  });
+  return res.ok;
+}
+
+async function postControl(
+  gameId: string,
+  action: string,
+  secret: string,
+  extra?: Record<string, unknown>,
+) {
+  const res = await fetch(`/api/games/${gameId}/control`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-secret": secret,
+    },
+    body: JSON.stringify({ action, ...extra }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new ApiError(
+      res.status,
+      (data as { error?: string }).error || `API error ${res.status}`,
+    );
+  }
+  return res.json();
+}
+
+export function startGame(gameId: string, secret: string) {
+  return postControl(gameId, "start", secret);
+}
+
+export function pauseGame(gameId: string, secret: string) {
+  return postControl(gameId, "pause", secret);
+}
+
+export function unpauseGame(gameId: string, secret: string) {
+  return postControl(gameId, "unpause", secret);
+}
+
+// Clears the game clock (deletes the dashboard control item). Refuses to reset a
+// running clock with a 409 unless force is passed. The next startGame recreates it.
+export function resetGame(gameId: string, secret: string, force = false) {
+  return postControl(gameId, "reset", secret, force ? { force: true } : undefined);
 }

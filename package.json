@@ -14,12 +14,13 @@
     "diff": "cdk diff"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "aws-cdk": "^2.170.0",
     "aws-cdk-lib": "^2.170.0",
     "constructs": "^10.4.2",
-    "typescript": "^5.7.0",
+    "dotenv": "^17.4.2",
+    "esbuild": "^0.24.0",
     "ts-node": "^10.9.2",
-    "@types/node": "^22.0.0",
-    "esbuild": "^0.24.0"
+    "typescript": "^5.7.0"
   }
 }

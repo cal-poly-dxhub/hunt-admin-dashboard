@@ -2,9 +2,11 @@ import { useState, useEffect } from "react";
 
 interface Props {
   startTime: string | null;
+  pausedAt?: string | null;
+  totalPausedMs?: number;
 }
 
-export function Stopwatch({ startTime }: Props) {
+export function Stopwatch({ startTime, pausedAt, totalPausedMs = 0 }: Props) {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -12,14 +14,20 @@ export function Stopwatch({ startTime }: Props) {
 
     const start = new Date(startTime).getTime();
 
+    if (pausedAt) {
+      const frozen = new Date(pausedAt).getTime() - start - totalPausedMs;
+      setElapsed(Math.floor(frozen / 1000));
+      return;
+    }
+
     const tick = () => {
-      setElapsed(Math.floor((Date.now() - start) / 1000));
+      setElapsed(Math.floor((Date.now() - start - totalPausedMs) / 1000));
     };
 
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [startTime]);
+  }, [startTime, pausedAt, totalPausedMs]);
 
   if (!startTime) return null;
 

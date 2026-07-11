@@ -5,7 +5,8 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as s3 from "aws-cdk-lib/aws-s3";
 import * as s3deploy from "aws-cdk-lib/aws-s3-deployment";
-import * as s3n from "aws-cdk-lib/aws-s3-notifications";
+import * as events from "aws-cdk-lib/aws-events";
+import * as targets from "aws-cdk-lib/aws-events-targets";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { Construct } from "constructs";
@@ -45,7 +46,7 @@ export class DashboardStack extends cdk.Stack {
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
-        allowHeaders: ["Content-Type", "Authorization"],
+        allowHeaders: ["Content-Type", "Authorization", "x-admin-secret"],
       },
     });
 
@@ -119,6 +120,34 @@ export class DashboardStack extends cdk.Stack {
     });
     photoBucket.grantRead(photoUrlFunction);
 
+    // --- Game control (start/pause/unpause) ---
+    const gameControlPolicy = new iam.PolicyStatement({
+      actions: ["dynamodb:UpdateItem", "dynamodb:GetItem"],
+      resources: [tableArn],
+    });
+
+    const gameControlFunction = new NodejsFunction(this, "GameControlFunction", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "../lambda/src/game-control.ts"),
+      handler: "handler",
+      environment: {
+        TABLE_NAME: tableName,
+        ADMIN_SECRET: process.env.ADMIN_SECRET || "CHANGE_ME",
+      },
+    });
+    gameControlFunction.addToRolePolicy(gameControlPolicy);
+
+    // --- Verify (auth check only) ---
+    const verifyFunction = new NodejsFunction(this, "VerifyFunction", {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(__dirname, "../lambda/src/verify.ts"),
+      handler: "handler",
+      environment: {
+        TABLE_NAME: tableName,
+        ADMIN_SECRET: process.env.ADMIN_SECRET || "CHANGE_ME",
+      },
+    });
+
     // --- S3 event handler ---
     const dynamoWritePolicy = new iam.PolicyStatement({
       actions: ["dynamodb:PutItem"],
@@ -133,13 +162,27 @@ export class DashboardStack extends cdk.Stack {
     });
     s3EventFunction.addToRolePolicy(dynamoWritePolicy);
 
-    photoBucket.addEventNotification(
-      s3.EventType.OBJECT_CREATED,
-      new s3n.LambdaDestination(s3EventFunction),
-    );
+    // EventBridge rule for S3 object creation (EventBridge enabled on bucket separately)
+    new events.Rule(this, "PhotoUploadRule", {
+      eventPattern: {
+        source: ["aws.s3"],
+        detailType: ["Object Created"],
+        detail: {
+          bucket: { name: [photoBucketName] },
+        },
+      },
+      targets: [new targets.LambdaFunction(s3EventFunction)],
+    });
 
     // --- API Gateway resources ---
     const apiResource = api.root.addResource("api");
+
+    // POST /api/verify
+    const verifyResource = apiResource.addResource("verify");
+    verifyResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(verifyFunction),
+    );
 
     // GET /api/games
     const gamesResource = apiResource.addResource("games");
@@ -154,6 +197,13 @@ export class DashboardStack extends cdk.Stack {
     teamsResource.addMethod(
       "GET",
       new apigateway.LambdaIntegration(teamsFunction)
+    );
+
+    // POST /api/games/{gameId}/control
+    const controlResource = gameIdResource.addResource("control");
+    controlResource.addMethod(
+      "POST",
+      new apigateway.LambdaIntegration(gameControlFunction),
     );
 
     // GET /api/teams/{teamId}/progress

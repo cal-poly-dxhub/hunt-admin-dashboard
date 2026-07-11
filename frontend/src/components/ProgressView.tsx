@@ -8,6 +8,8 @@ interface Props {
   teamIds: string[];
   teamIndexMap: Map<string, number>;
   teamNameMap: Map<string, string>;
+  gameStartedAt?: string;
+  totalPausedMs?: number;
 }
 
 type SortKey = "best" | "recent" | "alpha";
@@ -44,18 +46,33 @@ function getLevelElapsed(level: Level, now: number): number | null {
   return now - start;
 }
 
-function getTeamTotalElapsed(levels: Level[], now: number): number {
-  const starts = levels
-    .filter((l) => l.started_at)
-    .map((l) => new Date(l.started_at!).getTime());
-  if (starts.length === 0) return 0;
-  const firstStart = Math.min(...starts);
+function getTeamTotalElapsed(
+  levels: Level[],
+  now: number,
+  gameStartedAt?: string,
+  totalPausedMs?: number,
+): number {
+  let firstStart: number;
+  if (gameStartedAt) {
+    firstStart = new Date(gameStartedAt).getTime();
+  } else {
+    const starts = levels
+      .filter((l) => l.started_at)
+      .map((l) => new Date(l.started_at!).getTime());
+    if (starts.length === 0) return 0;
+    firstStart = Math.min(...starts);
+  }
   const hasInProgress = levels.some((l) => l.started_at && !l.completed_at);
-  if (hasInProgress) return now - firstStart;
-  const completions = levels
-    .filter((l) => l.completed_at)
-    .map((l) => new Date(l.completed_at!).getTime());
-  return completions.length > 0 ? Math.max(...completions) - firstStart : 0;
+  let elapsed: number;
+  if (hasInProgress) {
+    elapsed = now - firstStart;
+  } else {
+    const completions = levels
+      .filter((l) => l.completed_at)
+      .map((l) => new Date(l.completed_at!).getTime());
+    elapsed = completions.length > 0 ? Math.max(...completions) - firstStart : 0;
+  }
+  return elapsed - (totalPausedMs ?? 0);
 }
 
 function SortBar({ sortKey, sortDir, onSort }: {
@@ -98,7 +115,7 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   return <span>{formatDuration(elapsed)}</span>;
 }
 
-export function ProgressView({ teamIds, teamIndexMap, teamNameMap }: Props) {
+export function ProgressView({ teamIds, teamIndexMap, teamNameMap, gameStartedAt, totalPausedMs }: Props) {
   const { data, loading, error } = useProgress(teamIds);
   const [sortKey, setSortKey] = useState<SortKey>("best");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -138,7 +155,7 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap }: Props) {
     const getTotalElapsed = (id: string) => {
       const p = data.get(id);
       if (!p) return Infinity;
-      return getTeamTotalElapsed(p.levels, now);
+      return getTeamTotalElapsed(p.levels, now, gameStartedAt, totalPausedMs);
     };
 
     const getLatestActivity = (id: string) => {
@@ -238,7 +255,7 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap }: Props) {
               : 0;
 
           const sortedLevels = [...progress.levels].sort((a, b) => a.index - b.index);
-          const teamElapsed = getTeamTotalElapsed(sortedLevels, now);
+          const teamElapsed = getTeamTotalElapsed(sortedLevels, now, gameStartedAt, totalPausedMs);
 
           return (
             <div key={teamId}>
