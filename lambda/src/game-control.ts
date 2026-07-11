@@ -23,7 +23,7 @@ export async function handler(
     // The game-level start/pause clock is dashboard-owned state. We write it to a
     // separate item (SK = DASHBOARD#CONTROL), NOT the game backend's #METADATA item,
     // so the dashboard never mutates game-backend-owned data. games.ts merges these
-    // fields back onto each game on read. See GAME_BACKEND_SCHEMA.md "Writers".
+    // fields back onto each game on read. See SHARED_TABLE_MODEL.md "Writers".
     const key = { PK: `GAME#${gameId}`, SK: "DASHBOARD#CONTROL" };
     const now = new Date().toISOString();
 

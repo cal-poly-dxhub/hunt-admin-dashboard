@@ -1,8 +1,10 @@
 # CLAUDE.md
 
 Real-time admin dashboard for monitoring a campus scavenger ("duck") hunt at Cal Poly SLO.
-It is **read-mostly**: it observes data written by a separate game backend (not in this repo)
-and only writes game start/pause state. React + Mapbox frontend, AWS CDK infra, Lambda API.
+It is **read-only against game-backend data**: it observes a table written by a separate game
+backend (not in this repo) and never mutates backend items. It writes only its own two additive
+item types (`CHECKPOINT_EVENT`, `DASHBOARD_CONTROL`) — see SHARED_TABLE_MODEL.md §8. React +
+Mapbox frontend, AWS CDK infra, Lambda API.
 
 ## Environment
 
@@ -71,7 +73,7 @@ Every item has an `ItemType`. This repo mostly **reads** these; the game backend
 |---|---|---|---|
 | Game | `GAME#<id>` | `#METADATA` | `ItemType=GAME`. Embeds `levels[]`/`teams[]` inline. Has `created_at`/`updated_at`, optional `winner_team_id`. **Backend-owned — the dashboard never writes here.** **No `name`/`status` attribute.** |
 | Team | `GAME#<id>` | `TEAM#<teamId>` | |
-| Progress (`TEAM_LEVEL`) | `TEAM#<teamId>` | `LEVEL#<levelId>` | complete iff `completed_at` is set (**no `Status` field** — see GAME_BACKEND_SCHEMA.md §3). Sort route by `index`; join to level via `level_id`, not `id` |
+| Progress (`TEAM_LEVEL`) | `TEAM#<teamId>` | `LEVEL#<levelId>` | complete iff `completed_at` is set (**no `Status` field** — see SHARED_TABLE_MODEL.md §3). Sort route by `index`; join to level via `level_id`, not `id` |
 | Coord snapshot | `TEAM#<teamId>` | `COORDINATE_SNAPSHOT#<epoch>#<id>` | queried via GSI1; lat/long come back as **strings** |
 | Checkpoint event *(dashboard)* | `TEAM#<teamId>` | `CHECKPOINT_EVENT#<epoch>#<levelId>` | GSI1PK=`CHECKPOINT_EVENTS`; written by `s3-event.ts` |
 | Dashboard control *(dashboard)* | `GAME#<id>` | `DASHBOARD#CONTROL` | `ItemType=DASHBOARD_CONTROL`. Start/pause clock; written by `game-control.ts` |
@@ -84,7 +86,7 @@ it can't restart), `pause` sets `paused_at`, `unpause` removes `paused_at` and a
 `total_paused_ms`, and `reset` **deletes** the control item to zero the clock (refuses with 409 if the
 clock is running unless `force: true`; the next `start` recreates it). `games.ts` merges those fields
 onto each game in the `/api/games` response, and the frontend Stopwatch reads them off the game object.
-See GAME_BACKEND_SCHEMA.md "Writers into this table".
+See SHARED_TABLE_MODEL.md "Writers into this table".
 
 Checkpoint flow: a team photo lands in the S3 bucket under key `teamId/levelId/timestamp_userId.png`;
 EventBridge fires `s3-event.ts`, which parses the key and writes a `CHECKPOINT_EVENT`. The dashboard

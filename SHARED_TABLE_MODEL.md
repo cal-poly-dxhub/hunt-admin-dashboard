@@ -1,16 +1,22 @@
-# Duck Hunt — Game Backend Data Model & Write Reference
+# Duck Hunt — Shared DynamoDB Table Model
 
-> **Audience:** the admin-dashboard frontend/agent, which *reads* the shared DynamoDB
-> table and needs to know exactly what the game backend writes, when, and in what shape.
+> **What this is:** the `ScavengerHuntData-<uniqueId>` table is shared by two systems — the
+> **game backend** (`duck-hunt` repo, the source of truth for all gameplay) and this
+> **admin dashboard** (`hunt-admin-dashboard`). This doc is the contract between them: what
+> every item type looks like, who writes it, and exactly how the dashboard extends the table
+> **without ever mutating game-backend data**.
 >
-> **Source of truth:** the `duck-hunt` repo (the game backend), branch `summer-camp-2026`,
-> commit `e35628b`. This dashboard repo does **not** contain the writer code — this doc
-> mirrors it so you don't have to guess. If the game backend changes, regenerate this.
+> **Audience:** the dashboard frontend/agent. §1–7 describe the game backend's data model
+> (what the dashboard *reads*). **§8 is the dashboard's own additive write layer.**
 >
-> This dashboard is **read-only against game-backend items**: it never mutates any item
-> the game backend owns. It additively writes two dashboard-owned item types of its own —
-> `CHECKPOINT_EVENT` and `DASHBOARD_CONTROL` (the start/pause clock). See the **Writers into
-> this table** section below for the full ownership map.
+> **Source of truth for §1–7:** the `duck-hunt` repo, branch `summer-camp-2026`, commit
+> `e35628b`. This dashboard repo does not contain the backend writer code — this doc mirrors
+> it. If the game backend changes, regenerate those sections.
+>
+> **The one-line contract:** the dashboard is **read-only against every game-backend item**.
+> It writes only its own two item types — `CHECKPOINT_EVENT` and `DASHBOARD_CONTROL` — which
+> live in key ranges no backend item uses. Quick map in **Writers into this table** below;
+> full detail in **§8**.
 
 ---
 
@@ -352,8 +358,8 @@ CORS is wide open (`*`) and there's no auth on the game API — prototype postur
 
 ## 7. Gotchas summary (read this)
 
-- **Progress completion = `completed_at` timestamp, not a `Status` field.** (Contradicts a note in
-  this repo's current `CLAUDE.md` — fix it there.)
+- **Progress completion = `completed_at` timestamp, not a `Status` field.** (The dashboard's
+  `progress.ts` and `CLAUDE.md` have been reconciled to this.)
 - **Two time formats coexist:** `created_at`/`updated_at` and `started_at`/`completed_at` are **ISO
   strings**; `deleted_at` and all `#<epoch>#` sort-key timestamps are **epoch seconds**.
 - **`TEAM_LEVEL.id` ≠ `level_id`.** Join on `level_id`.
@@ -363,8 +369,87 @@ CORS is wide open (`*`) and there's no auth on the game API — prototype postur
   message log is not a complete transcript of what was displayed.
 - **`GAME` embeds stale inline `teams[]`/`levels[]` snapshots**; the standalone `TEAM#`/`LEVEL#` items
   are authoritative.
-- **Start/pause fields on `GAME` are written by this dashboard, not the game backend.**
+- **The dashboard never writes to `#METADATA` or any backend item.** The start/pause clock lives on a
+  separate `DASHBOARD_CONTROL` item — so `updated_at` on `#METADATA` is a reliable backend-activity
+  signal. See **§8**.
 - **`ttl` is declared but never set** — don't rely on TTL expiry.
 - **On-demand billing** — no capacity ceiling, but full-table Scans still cost; prefer Queries/GSIs.
+
+---
+
+## 8. The dashboard's additive layer (how the dashboard writes)
+
+The dashboard treats the game backend's items as **strictly read-only**. It never issues a write —
+`PutItem`, `UpdateItem`, or `DeleteItem` — against any item type in §1–7. Everything it persists is
+**additive**: brand-new item types the backend neither reads nor writes, placed in `PK`/`SK` ranges
+that don't collide with anything backend-owned. This is what lets the two systems share one table
+safely without coordination or locking.
+
+### The three ways the dashboard stays additive
+
+1. **New item types, never new fields on old items.** The dashboard introduces exactly two `ItemType`s
+   of its own — `CHECKPOINT_EVENT` and `DASHBOARD_CONTROL`. It does **not** add attributes to `GAME`,
+   `TEAM_LEVEL`, etc. (An earlier version wrote `started_at`/`paused_at`/`total_paused_ms` and bumped
+   `updated_at` directly onto the `GAME#…/#METADATA` item — that made the dashboard a second writer into
+   backend state and corrupted `updated_at` as a signal. That coupling has been removed; the clock now
+   lives on its own `DASHBOARD_CONTROL` item.)
+
+2. **Disjoint key space.** Both dashboard items are keyed under existing `PK`s (`GAME#…`, `TEAM#…`) so
+   they co-locate for cheap `Query`, but their `SK`s (`CHECKPOINT_EVENT#…`, `DASHBOARD#CONTROL`) are
+   values no backend item ever uses. A backend `Query` for `#METADATA` / `TEAM#` / `LEVEL#` / etc. can
+   never return a dashboard item, and vice-versa. The `CHECKPOINT_EVENT` GSI1 partition
+   (`CHECKPOINT_EVENTS`) is likewise a partition no backend item writes.
+
+3. **Merge on read, not on write.** Where the dashboard needs its data to *appear* attached to a game
+   (the start/pause clock on the game object), it stores separately and **joins at read time** in
+   `games.ts` — rather than denormalizing onto the backend's item. The backend's item stays pristine.
+
+### What the dashboard writes
+
+| Item | ItemType | Lambda | Trigger | Key | Notable fields |
+|---|---|---|---|---|---|
+| **Checkpoint event** | `CHECKPOINT_EVENT` | `s3-event.ts` | EventBridge, on S3 photo upload | `PK=TEAM#<teamId>` · `SK=CHECKPOINT_EVENT#<epoch>#<levelId>` | `GSI1PK=CHECKPOINT_EVENTS`, `GSI1SK=<epoch>#<teamId>#<levelId>`, `team_id`, `level_id`, `s3_key`, `filename`, `created_at`(ISO) + `CreatedAt`(epoch) |
+| **Dashboard control** | `DASHBOARD_CONTROL` | `game-control.ts` | Admin start/pause/reset (secret-gated) | `PK=GAME#<gameId>` · `SK=DASHBOARD#CONTROL` | `started_at`, `paused_at`, `total_paused_ms`, `updated_at` |
+
+**`CHECKPOINT_EVENT`** — the dashboard's real-time notification feed. When a player photo lands in the
+S3 bucket (key `teamId/levelId/<epoch>_<userId>.png`), an EventBridge rule fires `s3-event.ts`, which
+writes one event item. The global `GSI1PK=CHECKPOINT_EVENTS` partition makes a single time-ordered feed
+across all teams (queried newest-first by `events.ts` for the toast/notification stream). Note it writes
+**both** `created_at` (ISO) and `CreatedAt` (epoch) — a dashboard convention; no backend item does this.
+This item type is purely a dashboard invention; the backend's own record of the upload is the `PHOTO`
+item (§3), which the dashboard leaves untouched.
+
+**`DASHBOARD_CONTROL`** — the admin game-level start/pause clock (the master Stopwatch). The backend has
+**no concept of a game-level clock** — its authoritative timing is per-`TEAM_LEVEL`
+`started_at`/`completed_at` (§3). This item is a dashboard-only overlay:
+- `start` → upsert with `started_at` + `ItemType` (guarded `attribute_not_exists(started_at)`, so it
+  can't restart). The item is *created* on the first start.
+- `pause` → set `paused_at`; `unpause` → accumulate `total_paused_ms`, remove `paused_at`.
+- `reset` → **delete** the item to zero the clock. Guarded so it refuses (HTTP 409) to reset a *running*
+  clock unless `{force: true}` is passed. The next `start` cleanly recreates it.
+- `games.ts` reads these items alongside the `GAME` scan and merges `started_at`/`paused_at`/
+  `total_paused_ms` onto the matching game (by `PK`) in the `/api/games` response — so the frontend sees
+  them on the game object even though they live on a separate item.
+
+### Consequences of the boundary
+
+- **`updated_at` on `#METADATA` is trustworthy again** — only the backend writes it, so it reflects real
+  gameplay activity, never a dashboard action.
+- **Clean reset / re-run** — clearing a game's clock is a single delete of a dashboard-owned item;
+  backend data (progress, winner, chat) is by definition unaffected.
+- **Orphans are harmless** — if the backend deletes a game, its `DASHBOARD_CONTROL` item is
+  dashboard-owned and won't be cleaned up, but `games.ts` merges by `PK` so an orphan with no matching
+  `GAME` is simply ignored.
+- **Infra is also disjoint** — the dashboard CDK stack references the table by ARN and never declares it,
+  so a backend `cdk deploy` and a dashboard deploy don't fight over the resource. (The shared table now
+  has PITR + deletion protection enabled; a stack *destroy*/replace is the remaining catastrophic risk,
+  tracked in the backend repo.)
+
+### Dashboard read access patterns (additions to §4)
+
+| You want… | How |
+|---|---|
+| The global checkpoint-event feed | `Query` GSI1 `GSI1PK=CHECKPOINT_EVENTS`, `ScanIndexForward=false`, optional `GSI1SK > since` |
+| A game's dashboard clock | `GetItem` PK=`GAME#<id>`, SK=`DASHBOARD#CONTROL` (or read it merged onto the game via `/api/games`) |
 </content>
 </invoke>

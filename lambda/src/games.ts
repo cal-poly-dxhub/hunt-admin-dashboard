@@ -4,7 +4,7 @@ import { docClient, TABLE_NAME, response, errorResponse } from "./shared";
 
 // Dashboard-owned start/pause clock fields, stored on the DASHBOARD#CONTROL item
 // (written by game-control.ts) and merged onto each game here so the frontend can
-// keep reading them off the game object. See GAME_BACKEND_SCHEMA.md "Writers".
+// keep reading them off the game object. See SHARED_TABLE_MODEL.md "Writers".
 const CONTROL_FIELDS = ["started_at", "paused_at", "total_paused_ms"] as const;
 
 export async function handler(
