@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { LiveBanner } from "./components/LiveBanner";
 import { PollToast } from "./components/PollToast";
@@ -7,6 +7,7 @@ import { Stopwatch } from "./components/Stopwatch";
 import { GameDropdown } from "./components/GameDropdown";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { RecordButton } from "./components/RecordButton";
+import { NotificationBell, type NotificationItem } from "./components/NotificationBell";
 import { TeamChips } from "./components/TeamChips";
 import { LiveMap } from "./components/LiveMap";
 import { ProgressView } from "./components/ProgressView";
@@ -14,17 +15,19 @@ import { useGames } from "./hooks/useGames";
 import { useTeams } from "./hooks/useTeams";
 import { useCoords } from "./hooks/useCoords";
 import { useCheckpointEvents } from "./hooks/useCheckpointEvents";
+import { startGame, pauseGame, unpauseGame, resetGame, verifySecret, ApiError } from "./lib/api";
 import { getTeamColor } from "./lib/colors";
 import ducks from "./data/ducks.json";
 
 function Layout() {
-  const { games } = useGames();
+  const { games, refetch: refetchGames } = useGames();
   const [gameId, setGameId] = useState<string | null>(null);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
   const { teams } = useTeams(gameId);
   const allTeamIds = useMemo(() => teams.map((t) => t.id), [teams]);
   const { data: coordsData, lastFetchedAt } = useCoords(allTeamIds, selectedTeamIds);
   const [checkpointEvents, setCheckpointEvents] = useState<CheckpointEvent[]>([]);
+  const [notificationHistory, setNotificationHistory] = useState<NotificationItem[]>([]);
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const [notifications, setNotifications] = useState(() => localStorage.getItem("settings:notifications") !== "false");
   const [fullscreen, setFullscreen] = useState(false);
@@ -62,18 +65,17 @@ function Layout() {
     } catch {}
 
     const id = `${event.CreatedAt}-${event.level_id}`;
+    const item = { id, teamName, teamColor, duckName, photoUrl, timestamp: event.CreatedAt };
+
+    setNotificationHistory((prev) => {
+      if (prev.some((n) => n.id === id)) return prev;
+      return [...prev, item];
+    });
+
     if (dismissedIdsRef.current.has(id)) return;
     setCheckpointEvents((prev) => {
       if (prev.some((e) => e.id === id)) return prev;
-      return [...prev, {
-        id,
-        teamName,
-        teamColor,
-        levelIndex: 0,
-        duckName,
-        photoUrl,
-        timestamp: event.CreatedAt,
-      }];
+      return [...prev, { ...item, levelIndex: 0 }];
     });
   });
 
@@ -113,6 +115,74 @@ function Layout() {
         ? teams.map((t) => t.id)
         : [teamId],
     );
+  };
+
+  const getSecret = (): string | null => {
+    return localStorage.getItem("admin-secret");
+  };
+
+  const handleStartGame = async () => {
+    if (!gameId) return;
+    if (!window.confirm("Are you sure? This cannot be undone.")) return;
+    const secret = getSecret();
+    if (!secret) return;
+    try {
+      await startGame(gameId, secret);
+      refetchGames();
+    } catch (err) {
+      alert(`Failed to start game: ${err}`);
+    }
+  };
+
+  const handlePauseGame = async () => {
+    if (!gameId) return;
+    if (!window.confirm("Pause the game timer?")) return;
+    const secret = getSecret();
+    if (!secret) return;
+    try {
+      await pauseGame(gameId, secret);
+      refetchGames();
+    } catch (err) {
+      alert(`Failed to pause: ${err}`);
+    }
+  };
+
+  const handleUnpauseGame = async () => {
+    if (!gameId) return;
+    if (!window.confirm("Resume the game timer?")) return;
+    const secret = getSecret();
+    if (!secret) return;
+    try {
+      await unpauseGame(gameId, secret);
+      refetchGames();
+    } catch (err) {
+      alert(`Failed to unpause: ${err}`);
+    }
+  };
+
+  const handleResetGame = async () => {
+    if (!gameId) return;
+    if (!window.confirm("Reset the game timer to zero? This clears the start time and any paused time.")) return;
+    const secret = getSecret();
+    if (!secret) return;
+    try {
+      await resetGame(gameId, secret);
+      refetchGames();
+    } catch (err) {
+      // 409 = the clock is still running; offer a forced reset.
+      if (err instanceof ApiError && err.status === 409) {
+        if (window.confirm("The game clock is still running. Force reset anyway?")) {
+          try {
+            await resetGame(gameId, secret, true);
+            refetchGames();
+          } catch (err2) {
+            alert(`Failed to reset: ${err2}`);
+          }
+        }
+        return;
+      }
+      alert(`Failed to reset: ${err}`);
+    }
   };
 
   const teamIndexMap = useMemo(() => {
@@ -191,8 +261,52 @@ function Layout() {
           </NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <NotificationBell items={notificationHistory} />
           <RecordButton />
-          <Stopwatch startTime={games.find((g) => g.id === gameId)?.created_at ?? null} />
+          {(() => {
+            const game = games.find((g) => g.id === gameId);
+            if (!game) return null;
+            if (!game.started_at) {
+              return (
+                <button
+                  className="px-3 py-1.5 text-xs font-semibold bg-green-600 text-white rounded-md hover:bg-green-700"
+                  onClick={handleStartGame}
+                >
+                  Start Game
+                </button>
+              );
+            }
+            return (
+              <div className="flex items-center gap-2">
+                <Stopwatch
+                  startTime={game.started_at}
+                  pausedAt={game.paused_at}
+                  totalPausedMs={game.total_paused_ms ?? 0}
+                />
+                {game.paused_at ? (
+                  <button
+                    className="px-2 py-1 text-[11px] font-medium bg-amber-100 text-amber-700 rounded hover:bg-amber-200"
+                    onClick={handleUnpauseGame}
+                  >
+                    Resume
+                  </button>
+                ) : (
+                  <button
+                    className="px-2 py-1 text-[11px] font-medium bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                    onClick={handlePauseGame}
+                  >
+                    Pause
+                  </button>
+                )}
+                <button
+                  className="px-2 py-1 text-[11px] font-medium bg-red-50 text-red-600 rounded hover:bg-red-100"
+                  onClick={handleResetGame}
+                >
+                  Reset
+                </button>
+              </div>
+            );
+          })()}
           <GameDropdown
             games={games}
             selectedGameId={gameId}
@@ -248,6 +362,8 @@ function Layout() {
                 teamIds={selectedTeamIds}
                 teamIndexMap={teamIndexMap}
                 teamNameMap={teamNameMap}
+                gameStartedAt={games.find((g) => g.id === gameId)?.started_at}
+                totalPausedMs={games.find((g) => g.id === gameId)?.total_paused_ms}
               />
             }
           />
@@ -258,10 +374,72 @@ function Layout() {
   );
 }
 
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const [authed, setAuthed] = useState(false);
+  const [checking, setChecking] = useState(true);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("admin-secret");
+    if (!stored) {
+      setChecking(false);
+      return;
+    }
+    verifySecret(stored).then((ok) => {
+      if (ok) setAuthed(true);
+      else localStorage.removeItem("admin-secret");
+      setChecking(false);
+    });
+  }, []);
+
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = input.trim();
+    if (!trimmed) return;
+    const ok = await verifySecret(trimmed);
+    if (ok) {
+      localStorage.setItem("admin-secret", trimmed);
+      setAuthed(true);
+      setError(false);
+    } else {
+      setError(true);
+    }
+  }, [input]);
+
+  if (checking) return null;
+  if (authed) return <>{children}</>;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 w-80">
+        <h1 className="text-lg font-semibold text-gray-900 mb-4">Admin Dashboard</h1>
+        <input
+          type="password"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Enter admin secret"
+          autoFocus
+          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+        />
+        {error && <p className="text-xs text-red-600 mt-1">Invalid secret</p>}
+        <button
+          type="submit"
+          className="mt-4 w-full px-3 py-2 text-sm font-medium bg-gray-900 text-white rounded-md hover:bg-gray-800"
+        >
+          Enter
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default function App() {
   return (
-    <BrowserRouter>
-      <Layout />
-    </BrowserRouter>
+    <AuthGate>
+      <BrowserRouter>
+        <Layout />
+      </BrowserRouter>
+    </AuthGate>
   );
 }

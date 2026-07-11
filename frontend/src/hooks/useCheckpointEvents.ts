@@ -8,7 +8,7 @@ export function useCheckpointEvents(
   intervalMs = 10000,
 ) {
   const sinceRef = useRef<string | undefined>(undefined);
-  const mountTimeRef = useRef(Math.floor(Date.now() / 1000));
+  const readyRef = useRef(false);
   const onEventRef = useRef(onEvent);
   const failCountRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -27,12 +27,13 @@ export function useCheckpointEvents(
         const latest = events[0];
         sinceRef.current = `${latest.CreatedAt}#${latest.team_id}#${latest.level_id}`;
 
-        for (const evt of events) {
-          if (evt.CreatedAt > mountTimeRef.current) {
+        if (readyRef.current) {
+          for (const evt of events) {
             onEventRef.current(evt);
           }
         }
       }
+      readyRef.current = true;
       failCountRef.current = 0;
       schedule(intervalMs);
     } catch {

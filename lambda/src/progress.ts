@@ -24,9 +24,9 @@ export async function handler(
 
     const levels = result.Items ?? [];
     const total = levels.length;
-    const completed = levels.filter(
-      (item) => item.Status === "COMPLETED"
-    ).length;
+    // A TEAM_LEVEL is complete iff completed_at is set — the game backend does
+    // not write a Status field. See SHARED_TABLE_MODEL.md §3 (TeamLevel).
+    const completed = levels.filter((item) => !!item.completed_at).length;
 
     return response(200, {
       teamId,
