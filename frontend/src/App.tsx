@@ -49,6 +49,11 @@ function Layout() {
     // Skip if teams haven't loaded yet (names would be wrong)
     if (teamNameMap.size === 0) return;
 
+    // The /api/events feed is global across all games. Only surface events whose
+    // team belongs to the currently selected game — otherwise stale events from
+    // other/older games would pop as generic "Team reached checkpoint" toasts.
+    if (!teamNameMap.has(event.team_id)) return;
+
     const teamName = teamNameMap.get(event.team_id) ?? "Team";
     const colorIndex = teamIndexMap.get(event.team_id) ?? 0;
     const teamColor = getTeamColor(colorIndex);

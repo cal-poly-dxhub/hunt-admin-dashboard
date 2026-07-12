@@ -120,9 +120,13 @@ export class DashboardStack extends cdk.Stack {
     });
     photoBucket.grantRead(photoUrlFunction);
 
-    // --- Game control (start/pause/unpause) ---
+    // --- Game control (start/pause/unpause/reset) ---
     const gameControlPolicy = new iam.PolicyStatement({
-      actions: ["dynamodb:UpdateItem", "dynamodb:GetItem"],
+      actions: [
+        "dynamodb:UpdateItem",
+        "dynamodb:GetItem",
+        "dynamodb:DeleteItem", // reset action deletes the DASHBOARD#CONTROL item
+      ],
       resources: [tableArn],
     });
 
