@@ -8,6 +8,10 @@ interface Props {
   levelIndex: number;
   photoUrl?: string | null;
   elapsedTime?: string;
+  // Notification path has a checkpoint NAME + a wall-clock time, but no route
+  // level index / elapsed. When provided these override the level-index labels.
+  checkpointLabel?: string;
+  timeLabel?: string;
 }
 
 function CloseIcon() {
@@ -18,7 +22,7 @@ function CloseIcon() {
   );
 }
 
-export function PhotoModal({ open, onClose, teamName, teamColor, levelIndex, photoUrl, elapsedTime }: Props) {
+export function PhotoModal({ open, onClose, teamName, teamColor, levelIndex, photoUrl, elapsedTime, checkpointLabel, timeLabel }: Props) {
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -59,7 +63,7 @@ export function PhotoModal({ open, onClose, teamName, teamColor, levelIndex, pho
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: teamColor }} />
             <span className="text-sm font-semibold text-gray-900">{teamName}</span>
-            <span className="text-sm text-gray-400">Level {levelIndex}</span>
+            <span className="text-sm text-gray-400">{checkpointLabel ?? `Level ${levelIndex}`}</span>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
             <CloseIcon />
@@ -80,12 +84,14 @@ export function PhotoModal({ open, onClose, teamName, teamColor, levelIndex, pho
           <div className="text-xs text-gray-700">
             {elapsedTime ? (
               <span>Completed in <span className="font-semibold text-gray-900 font-mono">{elapsedTime}</span></span>
+            ) : timeLabel ? (
+              <span>Reached at <span className="font-semibold text-gray-900 font-mono">{timeLabel}</span></span>
             ) : (
               <span>Time: <span className="font-mono">--:--:--</span></span>
             )}
           </div>
           <div className="text-xs text-gray-700 uppercase tracking-wide font-medium">
-            Checkpoint {levelIndex}
+            {checkpointLabel ?? `Checkpoint ${levelIndex}`}
           </div>
         </div>
       </div>

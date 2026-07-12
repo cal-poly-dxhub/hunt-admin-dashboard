@@ -9,28 +9,54 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { RecordButton } from "./components/RecordButton";
 import { NotificationBell, type NotificationItem } from "./components/NotificationBell";
 import { TeamChips } from "./components/TeamChips";
+import { GameStartBurst } from "./components/GameStartBurst";
 import { LiveMap } from "./components/LiveMap";
 import { ProgressView } from "./components/ProgressView";
 import { useGames } from "./hooks/useGames";
 import { useTeams } from "./hooks/useTeams";
 import { useCoords } from "./hooks/useCoords";
+import { useProgress } from "./hooks/useProgress";
 import { useCheckpointEvents } from "./hooks/useCheckpointEvents";
-import { startGame, pauseGame, unpauseGame, resetGame, verifySecret, ApiError } from "./lib/api";
+import { startGame, pauseGame, unpauseGame, resetGame, verifySecret, ApiError, gameLevelsToDucks } from "./lib/api";
 import { getTeamColor } from "./lib/colors";
-import ducks from "./data/ducks.json";
 
 function Layout() {
   const { games, refetch: refetchGames } = useGames();
   const [gameId, setGameId] = useState<string | null>(null);
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>([]);
-  const { teams } = useTeams(gameId);
+  const { teams: unsortedTeams } = useTeams(gameId);
+  const teams = useMemo(
+    () =>
+      [...unsortedTeams].sort((a, b) =>
+        a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }),
+      ),
+    [unsortedTeams],
+  );
   const allTeamIds = useMemo(() => teams.map((t) => t.id), [teams]);
   const { data: coordsData, lastFetchedAt } = useCoords(allTeamIds, selectedTeamIds);
+  const { data: progressData } = useProgress(allTeamIds);
+
+  // Checkpoint locations come from the selected game's levels (not a hardcoded
+  // file), keyed by level UUID — so map markers and notification names always
+  // match the actual game config.
+  const selectedGame = useMemo(
+    () => games.find((g) => g.id === gameId),
+    [games, gameId],
+  );
+  const ducks = useMemo(
+    () => gameLevelsToDucks(selectedGame?.levels),
+    [selectedGame],
+  );
+  const levelNameById = useMemo(
+    () => new Map(ducks.map((d) => [d.id, d.name])),
+    [ducks],
+  );
   const [checkpointEvents, setCheckpointEvents] = useState<CheckpointEvent[]>([]);
   const [notificationHistory, setNotificationHistory] = useState<NotificationItem[]>([]);
   const dismissedIdsRef = useRef<Set<string>>(new Set());
   const [notifications, setNotifications] = useState(() => localStorage.getItem("settings:notifications") !== "false");
   const [fullscreen, setFullscreen] = useState(false);
+  const [startBurst, setStartBurst] = useState(false);
 
   useEffect(() => {
     const handler = () => setFullscreen(!!document.fullscreenElement);
@@ -57,8 +83,7 @@ function Layout() {
     const teamName = teamNameMap.get(event.team_id) ?? "Team";
     const colorIndex = teamIndexMap.get(event.team_id) ?? 0;
     const teamColor = getTeamColor(colorIndex);
-    const duckName = ducks.find((d) => d.id.toString() === event.level_id)?.name
-      ?? "Checkpoint";
+    const duckName = levelNameById.get(event.level_id) ?? "Checkpoint";
 
     let photoUrl: string | null = null;
     try {
@@ -133,6 +158,7 @@ function Layout() {
     if (!secret) return;
     try {
       await startGame(gameId, secret);
+      setStartBurst(true);
       refetchGames();
     } catch (err) {
       alert(`Failed to start game: ${err}`);
@@ -228,6 +254,8 @@ function Layout() {
         <span className="w-1.5 h-1.5 rounded-full bg-gray-600 animate-bounce" style={{ animationDelay: "300ms" }} />
       </div>
     </div>
+
+    <GameStartBurst active={startBurst} onDone={() => setStartBurst(false)} />
 
     {notifications && <PollToast lastFetchedAt={lastFetchedAt} />}
     {notifications && <CheckpointToastStack events={checkpointEvents} onDismiss={dismissCheckpointEvent} />}
@@ -344,6 +372,8 @@ function Layout() {
           onToggle={handleTeamToggle}
           onSolo={handleTeamSolo}
           getColor={getTeamColor}
+          progressData={progressData}
+          totalLevels={games.find((g) => g.id === gameId)?.levelsInGame ?? 0}
         />
       </div>
 
@@ -357,6 +387,7 @@ function Layout() {
                 coordsData={coordsData}
                 teamIndexMap={teamIndexMap}
                 teamNameMap={teamNameMap}
+                ducks={ducks}
               />
             }
           />

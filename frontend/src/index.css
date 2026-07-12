@@ -55,6 +55,33 @@ body {
   animation: level-pulse 2s ease-in-out infinite;
 }
 
+/* Game-start burst: a bright ring flashes, expands, and fades (~4s total). */
+@keyframes game-start-ring {
+  0% { transform: scale(0.2); opacity: 0; }
+  12% { opacity: 1; }
+  60% { transform: scale(3.2); opacity: 0; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+
+@keyframes game-start-flash {
+  0% { opacity: 0; }
+  8% { opacity: 0.75; }
+  70% { opacity: 0.75; }
+  100% { opacity: 0; }
+}
+
+@keyframes game-start-label {
+  0% { transform: scale(0.4); opacity: 0; }
+  12% { transform: scale(1.15); opacity: 1; }
+  22% { transform: scale(1); opacity: 1; }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.game-start-ring { animation: game-start-ring 4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.game-start-flash { animation: game-start-flash 4s ease-out forwards; }
+.game-start-label { animation: game-start-label 4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
 .hunt-popup .mapboxgl-popup-content {
   padding: 8px 12px;
   border-radius: 6px;

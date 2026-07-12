@@ -85,8 +85,14 @@ export function NotificationBell({ items }: Props) {
                     {item.photoUrl && (
                       <button
                         onClick={() => setModal(item)}
-                        className="text-[10px] font-medium text-gray-500 hover:text-gray-900 shrink-0 cursor-pointer"
+                        className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 hover:text-gray-900 shrink-0 cursor-pointer transition-colors"
+                        title="View photo"
                       >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path d="M21 15l-5-5L5 21" />
+                        </svg>
                         Photo
                       </button>
                     )}
@@ -106,6 +112,12 @@ export function NotificationBell({ items }: Props) {
           teamColor={modal.teamColor}
           levelIndex={0}
           photoUrl={modal.photoUrl}
+          checkpointLabel={modal.duckName}
+          timeLabel={new Date(modal.timestamp * 1000).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })}
         />
       )}
     </>

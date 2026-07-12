@@ -1,5 +1,5 @@
 import { useRef, useEffect } from "react";
-import type { Team } from "../lib/api";
+import type { Team, TeamProgress } from "../lib/api";
 
 interface Props {
   teams: Team[];
@@ -7,9 +7,11 @@ interface Props {
   onToggle: (teamId: string) => void;
   onSolo: (teamId: string) => void;
   getColor: (index: number) => string;
+  progressData?: Map<string, TeamProgress>;
+  totalLevels?: number;
 }
 
-export function TeamChips({ teams, selectedTeamIds, onToggle, onSolo, getColor }: Props) {
+export function TeamChips({ teams, selectedTeamIds, onToggle, onSolo, getColor, progressData, totalLevels = 0 }: Props) {
   const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastClickRef = useRef<{ id: string; time: number } | null>(null);
 
@@ -47,6 +49,12 @@ export function TeamChips({ teams, selectedTeamIds, onToggle, onSolo, getColor }
     <>
       {teams.map((team, index) => {
         const active = selectedTeamIds.includes(team.id);
+        const color = getColor(index);
+        const progress = progressData?.get(team.id);
+        const completed =
+          progress?.levels.filter((l) => !!l.completed_at).length ?? 0;
+        // One box per level in the game; fill exactly the completed count.
+        const filled = Math.min(completed, totalLevels);
         return (
           <button
             key={team.id}
@@ -57,10 +65,27 @@ export function TeamChips({ teams, selectedTeamIds, onToggle, onSolo, getColor }
                 : "bg-transparent border-transparent text-gray-300 hover:text-gray-400 hover:bg-gray-100/50 hover:border-gray-200"
             }`}
           >
-            <span
-              className="w-2 h-2 rounded-full shrink-0 transition-colors"
-              style={{ backgroundColor: active ? getColor(index) : "#d1d5db" }}
-            />
+            <span className="flex items-center gap-0.5 shrink-0">
+              {Array.from({ length: totalLevels }, (_, i) => {
+                const isFilled = i < filled;
+                return (
+                  <span
+                    key={i}
+                    className="w-1.5 h-4 rounded-[1px] transition-colors"
+                    style={{
+                      // Filled = solid color (active) or gray (inactive); empty is
+                      // always a neutral light gray so filled vs empty is clear —
+                      // a color-tinted empty box reads as "filled" on a tiny bar.
+                      backgroundColor: isFilled
+                        ? active
+                          ? color
+                          : "#9ca3af"
+                        : "#f3f4f6",
+                    }}
+                  />
+                );
+              })}
+            </span>
             {team.name}
           </button>
         );

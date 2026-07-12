@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import type { Coord } from "../lib/api";
-import ducks from "../data/ducks.json";
+import type { Coord, Duck } from "../lib/api";
 
 interface Props {
   mapRef: React.RefObject<any>;
   mapLoaded: boolean;
   coordsData: Map<string, Coord[]>;
+  ducks: Duck[];
   showTrails: boolean;
   onToggleTrails: () => void;
   showDucks: boolean;
@@ -69,7 +69,7 @@ function TrailIcon() {
   );
 }
 
-export function MapControls({ mapRef, mapLoaded, coordsData, showTrails, onToggleTrails, showDucks, onToggleDucks }: Props) {
+export function MapControls({ mapRef, mapLoaded, coordsData, ducks, showTrails, onToggleTrails, showDucks, onToggleDucks }: Props) {
   const [poiVisible, setPoiVisible] = useState(() => localStorage.getItem("map:poi") !== "false");
   const [roadsVisible, setRoadsVisible] = useState(() => localStorage.getItem("map:roads") !== "false");
 

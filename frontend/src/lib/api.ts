@@ -41,6 +41,30 @@ export interface GameLevel {
   mapLink: string;
 }
 
+// A checkpoint location for the map, derived from the selected game's levels
+// (id is the level UUID). Replaces the old hardcoded ducks.json so the map and
+// notification names always reflect the actual game config.
+export interface Duck {
+  id: string;
+  name: string;
+  character: string;
+  description: string;
+  latitude: number;
+  longitude: number;
+}
+
+export function gameLevelsToDucks(levels: GameLevel[] | undefined): Duck[] {
+  if (!levels) return [];
+  return levels.map((l) => ({
+    id: l.id,
+    name: l.levelName,
+    character: l.character?.name ?? "",
+    description: l.location?.description ?? "",
+    latitude: l.location?.latitude,
+    longitude: l.location?.longitude,
+  }));
+}
+
 // GET /api/games/{gameId}/teams → { teams: Team[] }
 export interface Team {
   id: string;

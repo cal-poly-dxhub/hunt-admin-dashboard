@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import { getTeamColor } from "../lib/colors";
 import { MapControls } from "./MapControls";
-import ducks from "../data/ducks.json";
-import type { Coord } from "../lib/api";
+import type { Coord, Duck } from "../lib/api";
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -13,11 +12,12 @@ interface Props {
   coordsData: Map<string, Coord[]>;
   teamIndexMap: Map<string, number>;
   teamNameMap: Map<string, string>;
+  ducks: Duck[];
 }
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string;
 
-export function LiveMap({ coordsData, teamIndexMap, teamNameMap }: Props) {
+export function LiveMap({ coordsData, teamIndexMap, teamNameMap, ducks }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
@@ -225,7 +225,7 @@ export function LiveMap({ coordsData, teamIndexMap, teamNameMap }: Props) {
 
       duckMarkersRef.current.push(marker);
     }
-  }, [showDucks]);
+  }, [showDucks, ducks]);
 
   if (!MAPBOX_TOKEN) {
     return (
@@ -242,6 +242,7 @@ export function LiveMap({ coordsData, teamIndexMap, teamNameMap }: Props) {
         mapRef={mapRef}
         mapLoaded={mapLoaded}
         coordsData={coordsData}
+        ducks={ducks}
         showTrails={showTrails}
         onToggleTrails={() => {
           const next = !showTrails;

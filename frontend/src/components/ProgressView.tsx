@@ -310,10 +310,13 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap, gameStartedAt
                             photoUrl: null,
                             elapsedTime: elapsedStr,
                           });
-                          const nextLevel = sortedLevels[level.index + 1];
-                          if (state === "completed" && nextLevel) {
+                          // The checkpoint photo is taken AT this level, so it lives
+                          // under this level's own id — not the next level's. (The old
+                          // `index + 1` fetched the wrong folder and, for the latest
+                          // completed level, skipped the fetch entirely.)
+                          if (state === "completed") {
                             try {
-                              const res = await fetch(`/api/photo-url?prefix=${encodeURIComponent(`${teamId}/${nextLevel.level_id}/`)}`);
+                              const res = await fetch(`/api/photo-url?prefix=${encodeURIComponent(`${teamId}/${level.level_id}/`)}`);
                               if (res.ok) {
                                 const data = await res.json();
                                 setModal((prev) => prev ? { ...prev, photoUrl: data.url } : null);
@@ -336,7 +339,7 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap, gameStartedAt
                               : undefined
                         }
                       >
-                        <span className={`text-xs font-semibold ${
+                        <span className={`text-sm font-semibold ${
                           state === "completed"
                             ? "text-white"
                             : state === "in-progress"
@@ -345,7 +348,7 @@ export function ProgressView({ teamIds, teamIndexMap, teamNameMap, gameStartedAt
                         }`}>
                           Level {displayIndex}
                         </span>
-                        <span className={`text-[11px] font-mono mt-0.5 ${
+                        <span className={`text-sm font-mono mt-0.5 ${
                           state === "completed"
                             ? "text-white/70"
                             : state === "in-progress"
