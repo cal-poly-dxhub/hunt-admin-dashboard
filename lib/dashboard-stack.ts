@@ -137,6 +137,9 @@ export class DashboardStack extends cdk.Stack {
       environment: {
         TABLE_NAME: tableName,
         ADMIN_SECRET: process.env.ADMIN_SECRET || "CHANGE_ME",
+        // Second, private secret gating ALL game-control actions. Fail-closed:
+        // if unset, the sentinel never matches a real header so every action 403s.
+        CONTROL_SECRET: process.env.CONTROL_SECRET || "UNSET_FAIL_CLOSED",
       },
     });
     gameControlFunction.addToRolePolicy(gameControlPolicy);

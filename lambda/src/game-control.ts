@@ -3,15 +3,27 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { docClient, TABLE_NAME, response, errorResponse } from "./shared";
 
 const ADMIN_SECRET = process.env.ADMIN_SECRET!;
+const CONTROL_SECRET = process.env.CONTROL_SECRET!;
 
 export async function handler(
   event: APIGatewayProxyEvent,
 ): Promise<APIGatewayProxyResult> {
   try {
+    // Layer 1: dashboard admin secret (shared with viewers) — must be valid.
     const secret =
       event.headers["x-admin-secret"] || event.headers["X-Admin-Secret"];
     if (secret !== ADMIN_SECRET) {
       return errorResponse(401, "Unauthorized");
+    }
+
+    // Layer 2: private control secret — required for EVERY game-control action
+    // (start/pause/unpause/reset). Viewers with only the dashboard password have
+    // no control access. Fail-closed: env defaults to a sentinel that no real
+    // secret matches, so a misconfigured deploy rejects rather than opens up.
+    const controlSecret =
+      event.headers["x-control-secret"] || event.headers["X-Control-Secret"];
+    if (controlSecret !== CONTROL_SECRET) {
+      return errorResponse(403, "Requires control secret");
     }
 
     const gameId = event.pathParameters?.gameId;

@@ -160,6 +160,7 @@ async function postControl(
   gameId: string,
   action: string,
   secret: string,
+  controlSecret: string,
   extra?: Record<string, unknown>,
 ) {
   const res = await fetch(`/api/games/${gameId}/control`, {
@@ -167,6 +168,8 @@ async function postControl(
     headers: {
       "Content-Type": "application/json",
       "x-admin-secret": secret,
+      // Private per-action secret; prompted on each click, never stored.
+      "x-control-secret": controlSecret,
     },
     body: JSON.stringify({ action, ...extra }),
   });
@@ -180,20 +183,20 @@ async function postControl(
   return res.json();
 }
 
-export function startGame(gameId: string, secret: string) {
-  return postControl(gameId, "start", secret);
+export function startGame(gameId: string, secret: string, controlSecret: string) {
+  return postControl(gameId, "start", secret, controlSecret);
 }
 
-export function pauseGame(gameId: string, secret: string) {
-  return postControl(gameId, "pause", secret);
+export function pauseGame(gameId: string, secret: string, controlSecret: string) {
+  return postControl(gameId, "pause", secret, controlSecret);
 }
 
-export function unpauseGame(gameId: string, secret: string) {
-  return postControl(gameId, "unpause", secret);
+export function unpauseGame(gameId: string, secret: string, controlSecret: string) {
+  return postControl(gameId, "unpause", secret, controlSecret);
 }
 
 // Clears the game clock (deletes the dashboard control item). Refuses to reset a
 // running clock with a 409 unless force is passed. The next startGame recreates it.
-export function resetGame(gameId: string, secret: string, force = false) {
-  return postControl(gameId, "reset", secret, force ? { force: true } : undefined);
+export function resetGame(gameId: string, secret: string, controlSecret: string, force = false) {
+  return postControl(gameId, "reset", secret, controlSecret, force ? { force: true } : undefined);
 }

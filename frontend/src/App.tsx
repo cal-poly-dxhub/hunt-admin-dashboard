@@ -151,13 +151,23 @@ function Layout() {
     return localStorage.getItem("admin-secret");
   };
 
+  // Prompts for the private control secret on every action (never stored).
+  // Doubles as the confirm step. Returns null if cancelled/empty.
+  const promptControl = (verb: string): string | null => {
+    const cs = window.prompt(`Enter control secret to ${verb}:`);
+    if (cs === null) return null;
+    const trimmed = cs.trim();
+    return trimmed || null;
+  };
+
   const handleStartGame = async () => {
     if (!gameId) return;
-    if (!window.confirm("Are you sure? This cannot be undone.")) return;
     const secret = getSecret();
     if (!secret) return;
+    const controlSecret = promptControl("START the game");
+    if (!controlSecret) return;
     try {
-      await startGame(gameId, secret);
+      await startGame(gameId, secret, controlSecret);
       setStartBurst(true);
       refetchGames();
     } catch (err) {
@@ -167,11 +177,12 @@ function Layout() {
 
   const handlePauseGame = async () => {
     if (!gameId) return;
-    if (!window.confirm("Pause the game timer?")) return;
     const secret = getSecret();
     if (!secret) return;
+    const controlSecret = promptControl("PAUSE the timer");
+    if (!controlSecret) return;
     try {
-      await pauseGame(gameId, secret);
+      await pauseGame(gameId, secret, controlSecret);
       refetchGames();
     } catch (err) {
       alert(`Failed to pause: ${err}`);
@@ -180,11 +191,12 @@ function Layout() {
 
   const handleUnpauseGame = async () => {
     if (!gameId) return;
-    if (!window.confirm("Resume the game timer?")) return;
     const secret = getSecret();
     if (!secret) return;
+    const controlSecret = promptControl("RESUME the timer");
+    if (!controlSecret) return;
     try {
-      await unpauseGame(gameId, secret);
+      await unpauseGame(gameId, secret, controlSecret);
       refetchGames();
     } catch (err) {
       alert(`Failed to unpause: ${err}`);
@@ -193,18 +205,19 @@ function Layout() {
 
   const handleResetGame = async () => {
     if (!gameId) return;
-    if (!window.confirm("Reset the game timer to zero? This clears the start time and any paused time.")) return;
     const secret = getSecret();
     if (!secret) return;
+    const controlSecret = promptControl("RESET the timer to zero");
+    if (!controlSecret) return;
     try {
-      await resetGame(gameId, secret);
+      await resetGame(gameId, secret, controlSecret);
       refetchGames();
     } catch (err) {
       // 409 = the clock is still running; offer a forced reset.
       if (err instanceof ApiError && err.status === 409) {
         if (window.confirm("The game clock is still running. Force reset anyway?")) {
           try {
-            await resetGame(gameId, secret, true);
+            await resetGame(gameId, secret, controlSecret, true);
             refetchGames();
           } catch (err2) {
             alert(`Failed to reset: ${err2}`);
